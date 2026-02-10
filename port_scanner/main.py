@@ -25,7 +25,7 @@ def grab_banner(s, target):
     """
     s.settimeout(2.0) # Increase timeout slightly for SSH
     
-    # 1. Passive Listen (SSH/FTP/SMTP usually speak first)
+    #  Passive Listen 
     try:
         banner = s.recv(1024).decode(errors='ignore').strip()
         if banner:
@@ -33,7 +33,7 @@ def grab_banner(s, target):
     except Exception:
         pass
 
-    # 2. Active HTTP Probe (If passive failed, try to speak HTTP)
+    # Active HTTP Probe
     try:
         probe = f"HEAD / HTTP/1.0\r\nHost: {target}\r\n\r\n".encode()
         s.sendall(probe)
@@ -42,7 +42,7 @@ def grab_banner(s, target):
         if "HTTP/" in response:
             # Extract the 'Server' header if it exists
             lines = response.split('\r\n')
-            status_line = lines[0] # e.g., "HTTP/1.1 200 OK"
+            status_line = lines[0] 
             server_version = ""
             
             for line in lines:
@@ -143,7 +143,7 @@ def main():
     
     args = parser.parse_args()
     
-    # 1. Validate Target
+    # Validate Target
     try:
         target_ip = socket.gethostbyname(args.target)
         print(f"[*] Target resolved: {args.target} -> {target_ip}")
@@ -151,10 +151,10 @@ def main():
         print(f"[!] Error: Could not resolve hostname '{args.target}'")
         sys.exit(1)
 
-    # 2. Run Scan
+    # Run Scan
     results = scan_range(target_ip, args.start, args.end, args.timeout)
 
-    # 3. Display Results in a Table
+    #  Display Results in a Table
     print(f"\n{'-'*65}")
     print(f"{'PORT':<8} {'STATE':<10} {'SERVICE':<15} {'BANNER'}")
     print(f"{'-'*65}")

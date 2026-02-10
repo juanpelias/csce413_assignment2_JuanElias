@@ -1,38 +1,74 @@
 #!/bin/bash
 
-# Configuration
-TARGET_IP="127.0.0.1"
-SEQUENCE="7000,8000,9000"
-PROTECTED_PORT=2222
+# Define colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-echo "========================================"
-echo "    PORT KNOCKING DEMONSTRATION"
-echo "========================================"
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}   PORT KNOCKING AUTOMATED DEMO        ${NC}"
+echo -e "${BLUE}========================================${NC}"
 
-# Step 1: Prove it is closed
-echo "[1] Testing access BEFORE knocking..."
-# nc -z -v -w 1 checks for open port with 1 sec timeout
-nc -z -v -w 1 $TARGET_IP $PROTECTED_PORT 2>&1
+# CLEANUP
+echo -e "\n${BLUE}[1] Cleaning up old containers...${NC}"
+docker rm -f knock_test 2>/dev/null || true
+echo "Old container removed."
+
+# BUILD
+echo -e "\n${BLUE}[2] Building Docker Image...${NC}"
+docker build -t port_knocker .
+
 if [ $? -ne 0 ]; then
-    echo "    -> Port is CLOSED (As expected)"
-else
-    echo "    -> WARNING: Port is ALREADY OPEN. Reset your firewall!"
+    echo -e "${RED}Build failed! Exiting.${NC}"
+    exit 1
 fi
-echo ""
 
-# Step 2: Perform the Knock
-echo "[2] Sending Knock Sequence: $SEQUENCE"
-python3 knock_client.py --target $TARGET_IP --sequence "$SEQUENCE" --protected-port $PROTECTED_PORT --delay 0.1
-echo ""
+# RUN
+echo -e "\n${BLUE}[3] Starting Container...${NC}"
+# --cap-add=NET_ADMIN is crucial for iptables!
+docker run --rm -d --cap-add=NET_ADMIN --name knock_test port_knocker
 
-# Step 3: Prove it is open
-echo "[3] Testing access AFTER knocking..."
-# We sleep briefly to let the server process the rules
-sleep 1
-nc -z -v -w 1 $TARGET_IP $PROTECTED_PORT 2>&1
-if [ $? -eq 0 ]; then
-    echo "    -> SUCCESS! Port is OPEN."
+# Give the server a moment to initialize the firewall rules
+echo "Waiting 3 seconds for firewall to initialize..."
+sleep 3
+
+# GET IP
+TARGET_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' knock_test)
+echo -e "Target Container IP: ${GREEN}$TARGET_IP${NC}"
+
+# TEST 1: EXPECT FAILURE (Port should be locked)
+echo -e "\n${BLUE}[4] Testing access BEFORE knocking (Should FAIL)...${NC}"
+echo "Trying to connect to $TARGET_IP:2222..."
+
+
+nc -z -v -w 2 $TARGET_IP 2222
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+    echo -e "${GREEN}SUCCESS: Connection timed out or refused. The port is LOCKED.${NC}"
 else
-    echo "    -> FAILED. Port is still closed."
+    echo -e "${RED}FAILURE: The port is OPEN! Firewall rules are not working.${NC}"
+    # We continue anyway to see if knocking breaks anything else, or you can exit here.
 fi
-echo "========================================"
+
+# PERFORM THE KNOCK
+echo -e "\n${BLUE}[5] Sending Knock Sequence (7000 -> 8000 -> 9000)...${NC}"
+python3 knock_client.py --target $TARGET_IP --sequence "7000,8000,9000"
+
+# TEST 2: EXPECT SUCCESS (Port should be open)
+echo -e "\n${BLUE}[6] Testing access AFTER knocking (Should SUCCEED)...${NC}"
+echo "Trying to connect to $TARGET_IP:2222..."
+
+nc -z -v -w 2 $TARGET_IP 2222
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}SUCCESS: Connection succeeded! The port opened.${NC}"
+else
+    echo -e "${RED}FAILURE: Connection failed. The port is still locked.${NC}"
+fi
+
+echo -e "\n${BLUE}========================================${NC}"
+echo -e "${BLUE}   DEMO COMPLETE                       ${NC}"
+echo -e "${BLUE}========================================${NC}"

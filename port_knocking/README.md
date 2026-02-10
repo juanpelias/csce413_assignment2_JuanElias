@@ -1,22 +1,30 @@
-## Port Knocking Starter Template
+# Port Knocking Implementation
 
-This directory is a starter template for the port knocking portion of the assignment.
+## Overview
+This project implements a **Port Knocking** security mechanism. It hides a protected service (running on TCP Port 2222) behind a firewall that drops all incoming connections by default. 
 
-### What you need to implement
-- Pick a protected service/port (default is 2222).
-- Define a knock sequence (e.g., 1234, 5678, 9012).
-- Implement a server that listens for knocks and validates the sequence.
-- Open the protected port only after a valid sequence.
-- Add timing constraints and reset on incorrect sequences.
-- Implement a client to send the knock sequence.
+To access the service, a client must send a specific "secret knock" sequence of UDP packets to the server. Once the correct sequence is detected, the firewall temporarily opens the port for that specific IP address.
 
-### Getting started
-1. Implement your server logic in `knock_server.py`.
-2. Implement your client logic in `knock_client.py`.
-3. Update `demo.sh` to demonstrate your flow.
-4. Run from the repo root with `docker compose up port_knocking`.
+## Features
+* **Zero-Port Exposure:** The protected service (Port 2222) appears "closed" or "filtered" to scanners (nmap, netcat) until the knock is received.
+* **Packet Sniffing:** The server uses raw sockets in Python to listen for UDP packets on specific ports without actually opening them.
+* **Dynamic Firewall Management:** Automatically updates `iptables` rules to allow/block IPs based on successful knocks.
+* **Automated Demo:** Includes a shell script (`demo.sh`) to demonstrate the full attack/access lifecycle.
 
-### Example usage
+## Files
+* `knock_server.py`: The daemon that listens for knocks and modifies firewall rules.
+* `knock_client.py`: The client tool used to send the secret knock sequence.
+* `Dockerfile`: Builds the environment with Python, iptables, and netcat.
+* `demo.sh`: An automated script to build, run, and test the project.
+
+## Installation & Setup
+
+### Prerequisites
+* Docker installed on the host machine.
+* Root privileges (required for `iptables` inside Docker).
+
+### 1. Build the Docker Image
+Navigate to the `port_knocking` directory and build the image:
+
 ```bash
-python3 knock_client.py --target 172.20.0.40 --sequence 1234,5678,9012
-```
+docker build -t port_knocker .

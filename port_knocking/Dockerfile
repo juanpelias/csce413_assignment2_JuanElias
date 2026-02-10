@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
 
-# Install Python, iptables, and netcat-traditional (crucial fix!)
+
 RUN apt-get update && apt-get install -y \
     python3 \
     iptables \
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Fix: Make 'nc' use the traditional version (which supports -e)
+
 RUN update-alternatives --set nc /bin/nc.traditional
 
 WORKDIR /app

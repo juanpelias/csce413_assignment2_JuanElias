@@ -24,18 +24,16 @@ def init_firewall(protected_port):
     """Initialize firewall: Block the protected port FIRST."""
     logger.info(f"Initializing firewall rules. Locking port {protected_port}...")
     
-    # 1. Flush existing rules (Start fresh)
+    #  Flush existing rules (Start fresh)
     run_cmd("iptables -F")
-    
-    # 2. Allow established connections (So existing sessions don't break)
+  
+
     run_cmd("iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
     
-    # --- THE CRITICAL FIX ---
-    # We explicitly DROP traffic to the protected port BEFORE allowing loopback.
-    # This ensures even local tests (localhost) get blocked.
+
     run_cmd(f"iptables -A INPUT -p tcp --dport {protected_port} -j DROP")
     
-    # 3. Allow loopback (For internal container processes, mostly safe now)
+
     run_cmd("iptables -A INPUT -i lo -j ACCEPT")
     
     logger.info(f"Port {protected_port} is now CLOSED (DROP).")
