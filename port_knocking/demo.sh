@@ -1,17 +1,38 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-set -euo pipefail
+# Configuration
+TARGET_IP="127.0.0.1"
+SEQUENCE="7000,8000,9000"
+PROTECTED_PORT=2222
 
-TARGET_IP=${1:-172.20.0.40}
-SEQUENCE=${2:-"1234,5678,9012"}
-PROTECTED_PORT=${3:-2222}
+echo "========================================"
+echo "    PORT KNOCKING DEMONSTRATION"
+echo "========================================"
 
-echo "[1/3] Attempting protected port before knocking"
-nc -z -v "$TARGET_IP" "$PROTECTED_PORT" || true
+# Step 1: Prove it is closed
+echo "[1] Testing access BEFORE knocking..."
+# nc -z -v -w 1 checks for open port with 1 sec timeout
+nc -z -v -w 1 $TARGET_IP $PROTECTED_PORT 2>&1
+if [ $? -ne 0 ]; then
+    echo "    -> Port is CLOSED (As expected)"
+else
+    echo "    -> WARNING: Port is ALREADY OPEN. Reset your firewall!"
+fi
+echo ""
 
-echo "[2/3] Sending knock sequence: $SEQUENCE"
-python3 knock_client.py --target "$TARGET_IP" --sequence "$SEQUENCE" --check
+# Step 2: Perform the Knock
+echo "[2] Sending Knock Sequence: $SEQUENCE"
+python3 knock_client.py --target $TARGET_IP --sequence "$SEQUENCE" --protected-port $PROTECTED_PORT --delay 0.1
+echo ""
 
-echo "[3/3] Attempting protected port after knocking"
-nc -z -v "$TARGET_IP" "$PROTECTED_PORT" || true
-
+# Step 3: Prove it is open
+echo "[3] Testing access AFTER knocking..."
+# We sleep briefly to let the server process the rules
+sleep 1
+nc -z -v -w 1 $TARGET_IP $PROTECTED_PORT 2>&1
+if [ $? -eq 0 ]; then
+    echo "    -> SUCCESS! Port is OPEN."
+else
+    echo "    -> FAILED. Port is still closed."
+fi
+echo "========================================"

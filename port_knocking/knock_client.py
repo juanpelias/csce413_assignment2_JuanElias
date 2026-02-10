@@ -1,83 +1,51 @@
 #!/usr/bin/env python3
-"""Starter template for the port knocking client."""
-
 import argparse
 import socket
 import time
-
-DEFAULT_KNOCK_SEQUENCE = [1234, 5678, 9012]
-DEFAULT_PROTECTED_PORT = 2222
-DEFAULT_DELAY = 0.3
-
+import sys
 
 def send_knock(target, port, delay):
-    """Send a single knock to the target port."""
-    # TODO: Choose UDP or TCP knocks based on your design.
-    # Example TCP knock stub:
     try:
-        with socket.create_connection((target, port), timeout=1.0):
-            pass
-    except OSError:
-        pass
+        # UDP is best for knocking (no handshake needed)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.sendto(b'Knock', (target, port))
+        print(f"[*] Knock sent to {target}:{port} (UDP)")
+        sock.close()
+    except Exception as e:
+        print(f"[-] Error knocking {port}: {e}")
     time.sleep(delay)
 
-
-def perform_knock_sequence(target, sequence, delay):
-    """Send the full knock sequence."""
-    for port in sequence:
-        send_knock(target, port, delay)
-
-
-def check_protected_port(target, protected_port):
-    """Try connecting to the protected port after knocking."""
-    # TODO: Replace with real service connection if needed.
+def check_access(target, port):
+    print(f"[*] Checking access to protected port {port}...")
     try:
-        with socket.create_connection((target, protected_port), timeout=2.0):
-            print(f"[+] Connected to protected port {protected_port}")
-    except OSError:
-        print(f"[-] Could not connect to protected port {protected_port}")
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Port knocking client starter")
-    parser.add_argument("--target", required=True, help="Target host or IP")
-    parser.add_argument(
-        "--sequence",
-        default=",".join(str(port) for port in DEFAULT_KNOCK_SEQUENCE),
-        help="Comma-separated knock ports",
-    )
-    parser.add_argument(
-        "--protected-port",
-        type=int,
-        default=DEFAULT_PROTECTED_PORT,
-        help="Protected service port",
-    )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=DEFAULT_DELAY,
-        help="Delay between knocks in seconds",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Attempt connection to protected port after knocking",
-    )
-    return parser.parse_args()
-
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2.0)
+        sock.connect((target, port))
+        print(f"[+] SUCCESS! Port {port} is open!")
+        sock.close()
+        return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        print(f"[-] LOCKED. Port {port} is closed/dropped.")
+        return False
 
 def main():
-    args = parse_args()
-    try:
-        sequence = [int(port) for port in args.sequence.split(",")]
-    except ValueError:
-        raise SystemExit("Invalid sequence. Use comma-separated integers.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--target", required=True)
+    parser.add_argument("--sequence", default="7000,8000,9000")
+    parser.add_argument("--protected-port", type=int, default=2222)
+    parser.add_argument("--delay", type=float, default=0.2)
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
 
-    perform_knock_sequence(args.target, sequence, args.delay)
+    seq = [int(p) for p in args.sequence.split(",")]
 
+    print(f"--- Performing Knock Sequence: {args.sequence} ---")
+    for port in seq:
+        send_knock(args.target, port, args.delay)
+    
     if args.check:
-        check_protected_port(args.target, args.protected_port)
-
+        time.sleep(0.5) # Allow server split-second to process rule
+        check_access(args.target, args.protected_port)
 
 if __name__ == "__main__":
     main()
